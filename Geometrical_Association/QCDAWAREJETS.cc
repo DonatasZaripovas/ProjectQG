@@ -10,19 +10,19 @@
 #include "fastjet/ClusterSequence.hh"
 using namespace fastjet;
 
-// #ifdef QCDAWARE_LABELLING
-#include "FinalPartons.hh"
+#ifdef QCDAWARE_LABELLING
+#include "Rivet/Projections/FinalPartons.hh"
 #include "fastjet/contrib/QCDAware.hh"
 #include "UserInfoParticle.hh"
 using namespace fastjet::contrib;
-// #endif
+#endif
 
 
 namespace Rivet {
 
 
   /// Histo path name components (etc.) for flavour label indices
-  const string LABEL_NAMES[3] = { "unlabelled", "quark", "gluon" };
+  const string LABEL_NAMES[3] = { "nolabel", "quark", "gluon" };
 
   /// Beta values for angularity and ECF observables
   const vector<double> BETAS = {{0.2, 0.5, 1, 2}};
@@ -51,12 +51,12 @@ namespace Rivet {
   ///
   /// (from p11 of https://indico.cern.ch/event/302395/session/16/contribution/12/material/slides/0.pdf)
   ///
-  class QCDAWAREJETS : public Analysis {
+  class MC_BOOST2014 : public Analysis {
   public:
 
     /// Constructor
-    QCDAWAREJETS()
-      : Analysis("QCDAWAREJETS")
+    MC_BOOST2014()
+      : Analysis("MC_BOOST2014")
     {    }
 
 
@@ -71,7 +71,7 @@ namespace Rivet {
       jetconst.addVetoOnThisFinalState(leptons_neutrinos);
       addProjection(FastJets(jetconst, FastJets::ANTIKT, JET_RADIUS), "Jets");
 
-      // #ifdef QCDAWARE_LABELLING
+      #ifdef QCDAWARE_LABELLING
       // Inputs to partonic label determination
       // Charged leptons and photons
       VisibleFinalState vfs = VisibleFinalState(Cuts::abseta < 4.2);
@@ -91,7 +91,7 @@ namespace Rivet {
       addProjection(fps, "FinalPartons");
       addProjection(FastJets(fps, FastJets::KT, JET_RADIUS), "Kt06FinalPartonJets");
       qcdawarekt.reset( new QCDAware(new KtMeasure(JET_RADIUS)) );
-      // #endif
+      #endif
 
 
       // Book histograms in arrays indexed unlabelled,quark,gluon
@@ -127,7 +127,7 @@ namespace Rivet {
       // Get particle jets
       const Jets& jets = applyProjection<FastJets>(e, "Jets").jetsByPt(30*GeV);
 
-      //#ifdef QCDAWARE_LABELLING
+      #ifdef QCDAWARE_LABELLING
 
       // Set up the list of inputs to the QCD-aware partonic clustering
       PseudoJets pjs;
@@ -159,14 +159,14 @@ namespace Rivet {
       ClusterSequence qcdawarecs(pjs, qcdawarekt.get());
       const PseudoJets label_jets = sorted_by_pt(qcdawarecs.inclusive_jets(20*GeV));
 
-      //#endif
+      #endif
 
 
       // Construct a map of labels for each particle jet
       map<size_t, int> jet_labels;
       for (size_t ijet = 0; ijet < jets.size(); ++ijet) {
         double label = 0; // nolabel
-        // #ifdef QCDAWARE_LABELLING
+        #ifdef QCDAWARE_LABELLING
         /// @todo Lots of potential for improvement on simple best-dR match: also require pT-match, and/or assign weights
         double best_dR = JET_RADIUS+1e-6; //< Reduce this to restrict successful labelling to an inner radius
         double best_pT = 0;
@@ -187,7 +187,7 @@ namespace Rivet {
             }
           }
         }
-        // #endif
+        #endif
         if (label != 0) jet_labels[ijet] = label;
       }
 
@@ -240,8 +240,7 @@ namespace Rivet {
             for (size_t j = i+1; j < jet.size(); ++j) {
               ECF2_beta[ib] += particles_pT[i] * particles_pT[j] * pow(R_mat[i][j], beta);
               for (size_t k = j+1; k < jet.size(); ++k) {
-                ECF3_beta[ib] +=
-                  particles_pT[i] * particles_pT[j] * particles_pT[k] * pow(R_mat[i][j]*R_mat[i][k]*R_mat[j][k], beta);
+                ECF3_beta[ib] += particles_pT[i] * particles_pT[j] * particles_pT[k] * pow(R_mat[i][j]*R_mat[i][k]*R_mat[j][k], beta);
               }
             }
           }
@@ -289,15 +288,15 @@ namespace Rivet {
     Histo1DPtr _h_pT[3], _h_eta[3], _h_mass[3];
     Histo1DPtr _h_ang[4][3], _h_C1[4][3], _h_C2[4][3];
 
-    // #ifdef QCDAWARE_LABELLING
+    #ifdef QCDAWARE_LABELLING
     std::unique_ptr<QCDAware> qcdawarekt;
-    // #endif
+    #endif
 
   };
 
 
 
   // Hook for the plugin system
-  DECLARE_RIVET_PLUGIN(QCDAWAREJETS);
+  DECLARE_RIVET_PLUGIN(MC_BOOST2014);
 
 }

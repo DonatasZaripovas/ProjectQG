@@ -14,7 +14,10 @@ using namespace fastjet;
 #include "FinalPartons.hh"
 #include "fastjet/contrib/QCDAware.hh"
 #include "UserInfoParticle.hh"
+
+#include <string>
 using namespace fastjet::contrib;
+using namespace std;
 // #endif
 
 
@@ -25,7 +28,9 @@ namespace Rivet {
   const string LABEL_NAMES[3] = { "unlabelled", "quark", "gluon" };
 
   /// Beta values for angularity and ECF observables
-  const vector<double> BETAS = {0.2, 0.5, 1, 2};
+  const vector<double> BETA = {0.2, 0.5, 1, 2};
+  /// Kappa values for angularity 
+  const vector<double> KAPPA = {0.2, 0.5, 1, 2};
 
 
   /// Standard jet radius used in this analysis (for both kT and anti-kT)
@@ -100,27 +105,30 @@ namespace Rivet {
 
 
       // Book histograms in arrays indexed unlabelled,quark,gluon
-      for (size_t i = 0; i < 3; ++i) {
-        const string& label = LABEL_NAMES[i];
+      // naming convention for angularities: "label_ang_kappa_beta
+      for (size_t il = 0; il < 3; ++il) { //< loops through labels
+        const string& label = LABEL_NAMES[il];
 
-        _h_pT[i]    = bookHisto1D(label + "_pT_1", 50, 20.0, 1000);
-        _h_eta[i]   = bookHisto1D(label + "_eta_1", 50, -5.0, 5.0);
-        _h_mass[i]  = bookHisto1D(label + "_mass_1", 50, 1.0, 100.0);
+        _h_pT[il]    = bookHisto1D(label + "_pT", 50, 20.0, 1000);
+        _h_eta[il]   = bookHisto1D(label + "_eta", 50, -5.0, 5.0);
+        _h_mass[il]  = bookHisto1D(label + "_mass", 50, 1.0, 100.0);
+        
+        for (size_t ib = 0; ib < BETA.size(); ++ib) { //< loops through betas
+          
+          //some to_string bug. resolved with static_cast<long double>
+          _h_C1[ib][il] = 
+              bookHisto1D(label + "_C1_" + to_string(static_cast<long double>(BETA[ib])), 50, 0.0, 0.7);
+          _h_C2[ib][il] = 
+              bookHisto1D(label + "_C2_" + to_string(static_cast<long double>(BETA[ib])), 50, 0.0, 0.7);
 
-        _h_ang[0][i] = bookHisto1D(label + "_ang1_02", logspace(50, 0.1, 1));
-        _h_ang[1][i] = bookHisto1D(label + "_ang1_05", logspace(50, 0.001, 0.8));
-        _h_ang[2][i] = bookHisto1D(label + "_ang1_10", logspace(50, 0.001, 0.6));
-        _h_ang[3][i] = bookHisto1D(label + "_ang1_20", logspace(50, 0.001, 0.4));
+          for (size_t ik = 0; ik < KAPPA.size(); ++ik) {//< loops through kappas for ang
 
-        _h_C1[0][i] = bookHisto1D(label + "_C1_02", 50, 0.0, 0.7);
-        _h_C1[1][i] = bookHisto1D(label + "_C1_05", 50, 0.0, 0.8);
-        _h_C1[2][i] = bookHisto1D(label + "_C1_10", 50, 0.0, 0.4);
-        _h_C1[3][i] = bookHisto1D(label + "_C1_20", 50, 0.0, 0.2);
+            _h_ang[ik][ib][il] = 
+                bookHisto1D(label +"_ang_"+ to_string(static_cast<long double>(KAPPA[ik])) 
+                           + "_" + to_string(static_cast<long double>(BETA[ib])), logspace(50, 0.0001, 1.5));
 
-        _h_C2[0][i] = bookHisto1D(label + "_C2_02", 50, 0.0, 0.7);
-        _h_C2[1][i] = bookHisto1D(label + "_C2_05", 50, 0.0, 0.5);
-        _h_C2[2][i] = bookHisto1D(label + "_C2_10", 50, 0.0, 0.3);
-        _h_C2[3][i] = bookHisto1D(label + "_C2_20", 50, 0.0, 0.2);
+          }
+        }
       }
 
     }
@@ -130,7 +138,7 @@ namespace Rivet {
     void analyze(const Event& e) {
 
       // Get particle jets
-      const Jets& jets = applyProjection<FastJets>(e, "Jets").jetsByPt(30*GeV);
+      const Jets& jets = applyProjection<FastJets>(e, "Jets").jetsByPt(20*GeV);
 
       //#ifdef QCDAWARE_LABELLING
 
@@ -209,13 +217,16 @@ namespace Rivet {
 
 
         // Angularities
-        vector<double> ang_beta(4), z_theta(4);
+        vector< vector<double> > ang_kappa_beta( KAPPA.size(), vector<double>( BETA.size() ) ); //< 4x4 matrix with rows of kappa=const and columns of beta=const
         for (size_t ib = 0; ib < 4; ++ib) {
-          const double& beta = BETAS[ib];
+          const double& beta = BETA[ib];
           /// @todo The axis here is the jets axis, needs to change to WTA
-          foreach (const Particle& p, jet.particles())
-            z_theta[ib] += p.pT() * pow( deltaR(p, jet)/ JET_RADIUS, beta);
-          ang_beta[ib] = z_theta[ib] / jet.pT();
+          foreach (const Particle& p, jet.particles()) {
+            for (size_t ik = 0; ik < KAPPA.size(); ++ik) {
+              const double& kappa = KAPPA[ik];
+              ang_kappa_beta[ik][ib] += pow( p.pT() / jet.pT(), kappa ) * pow( deltaR(p, jet) / JET_RADIUS, beta);
+            }
+          }
         }
 
         // Two-point energy-energy correlation functions
@@ -238,7 +249,7 @@ namespace Rivet {
         }
         // Loop over beta to compute the ECFs
         for (size_t ib = 0; ib < 4; ++ib) {
-          const double& beta = BETAS[ib];
+          const double& beta = BETA[ib];
           for (size_t i = 0; i < jet.size(); ++i) {
             ECF1_beta[ib] += particles_pT[i];
             for (size_t j = i+1; j < jet.size(); ++j) {
@@ -261,12 +272,14 @@ namespace Rivet {
         _h_eta[jlabel]->fill(jet.eta(), weight);
 
         // Angularities and ECF ratios for each value of beta
-        for (size_t ib = 0; ib < 4; ++ib) {
-          _h_ang[ib][jlabel]->fill(ang_beta[ib], weight); //< angularity
+        for (size_t ib = 0; ib < BETA.size(); ++ib) {
           if (ECF1_beta[ib] != 0)
             _h_C1[ib][jlabel]->fill(ECF2_beta[ib]/sqr(ECF1_beta[ib]), weight); //< C1
           if (ECF2_beta[ib] != 0)
             _h_C2[ib][jlabel]->fill(ECF1_beta[ib]*ECF3_beta[ib]/sqr(ECF2_beta[ib]), weight); //< C2
+          for (size_t ik = 0; ik < KAPPA.size(); ++ik) {
+            _h_ang[ik][ib][jlabel]->fill(ang_kappa_beta[ik][ib], weight); //< angularity
+          }
         }
 
       }
@@ -275,14 +288,15 @@ namespace Rivet {
 
     /// Normalise histograms etc., after the run
     void finalize() {
-      for (size_t jlabel = 0; jlabel < 2; ++jlabel) {
+      for (size_t jlabel = 0; jlabel < 3; ++jlabel) {
         scale(_h_pT[jlabel],   crossSection()/sumOfWeights());
         scale(_h_eta[jlabel],  crossSection()/sumOfWeights());
         scale(_h_mass[jlabel], crossSection()/sumOfWeights());
-        for (size_t ib = 0; ib < 4; ++ib) {
-          scale(_h_ang[ib][jlabel], crossSection()/sumOfWeights());
+        for (size_t ib = 0; ib < BETA.size(); ++ib) {
           scale(_h_C1[ib][jlabel],  crossSection()/sumOfWeights());
           scale(_h_C2[ib][jlabel],  crossSection()/sumOfWeights());
+          for (size_t ik = 0; ik < KAPPA.size(); ++ik) 
+            scale(_h_ang[ik][ib][jlabel], crossSection()/sumOfWeights());
         }
       }
     }
@@ -291,7 +305,7 @@ namespace Rivet {
   private:
 
     Histo1DPtr _h_pT[3], _h_eta[3], _h_mass[3];
-    Histo1DPtr _h_ang[4][3], _h_C1[4][3], _h_C2[4][3];
+    Histo1DPtr _h_ang[4][4][3], _h_C1[4][3], _h_C2[4][3];
 
     // #ifdef QCDAWARE_LABELLING
     //std::unique_ptr<QCDAware> qcdawarekt;

@@ -15,7 +15,6 @@ using namespace fastjet;
 #include "fastjet/contrib/QCDAware.hh"
 #include "UserInfoParticle.hh"
 using namespace fastjet::contrib;
-using namespace std;
 // #endif
 
 
@@ -26,9 +25,7 @@ namespace Rivet {
   const string LABEL_NAMES[3] = { "unlabelled", "quark", "gluon" };
 
   /// Beta values for angularity and ECF observables
-  const vector<double> BETAS = {{0.2, 0.5, 1, 2}};
-  //double foo_beta[] = {0.2, 0.5, 1, 2};
-  //const vector<double> BETAS (foo_beta, foo_beta + sizeof(foo_beta) / sizeof(foo_beta[0]) );
+  const vector<double> BETAS = {0.2, 0.5, 1, 2};
 
 
   /// Standard jet radius used in this analysis (for both kT and anti-kT)

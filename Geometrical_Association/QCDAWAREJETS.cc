@@ -91,7 +91,11 @@ namespace Rivet {
       FinalPartons fps = FinalPartons(Cuts::abseta < 4.2);
       addProjection(fps, "FinalPartons");
       addProjection(FastJets(fps, FastJets::KT, JET_RADIUS), "Kt06FinalPartonJets");
-      qcdawarekt.reset( new QCDAware(new KtMeasure(JET_RADIUS)) );
+      
+      QCDAwareDistanceMeasure<KtMeasure> *ktdm = 
+                   new QCDAwareDistanceMeasure<KtMeasure>(0.6); //Doesnt accept JET_RADIUS
+      qcdawarekt = new QCDAware(ktdm);
+      // qcdawarekt.reset( new QCDAware(new KtMeasure(JET_RADIUS)) );
       // #endif
 
 
@@ -157,16 +161,16 @@ namespace Rivet {
         }
       }
       // Determine the labelled partonic pseudojets for matching to particle jets
-      ClusterSequence qcdawarecs(pjs, qcdawarekt.get());
-      const PseudoJets label_jets = sorted_by_pt(qcdawarecs.inclusive_jets(20*GeV));
+      ClusterSequence qcdawarecs(pjs, qcdawarekt);
+      const PseudoJets label_jets = sorted_by_pt(qcdawarecs.inclusive_jets(30*GeV));
 
       //#endif
 
 
       // Construct a map of labels for each particle jet
       map<size_t, int> jet_labels;
-      for (size_t ijet = 0; ijet < jets.size(); ++ijet) {
         double label = 0; // nolabel
+      for (size_t ijet = 0; ijet < jets.size(); ++ijet) {
         // #ifdef QCDAWARE_LABELLING
         /// @todo Lots of potential for improvement on simple best-dR match: also require pT-match, and/or assign weights
         double best_dR = JET_RADIUS+1e-6; //< Reduce this to restrict successful labelling to an inner radius
@@ -189,9 +193,8 @@ namespace Rivet {
           }
         }
         // #endif
-        if (label != 0) jet_labels[ijet] = label;
+       if (label != 0) jet_labels[ijet] = label;
       }
-
 
       // Construct and plot observables for each jet, using the above labels
       for (size_t ijet = 0; ijet < jets.size(); ++ijet) {
@@ -291,7 +294,8 @@ namespace Rivet {
     Histo1DPtr _h_ang[4][3], _h_C1[4][3], _h_C2[4][3];
 
     // #ifdef QCDAWARE_LABELLING
-    std::unique_ptr<QCDAware> qcdawarekt;
+    //std::unique_ptr<QCDAware> qcdawarekt;
+    QCDAware *qcdawarekt;
     // #endif
 
   };
